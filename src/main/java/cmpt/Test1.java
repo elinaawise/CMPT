@@ -36,6 +36,7 @@ public class Test1 {
       timeX(cw, (long)i);
     }
 
+    System.out.println("Flushing");
     conn.tableOperations().flush(tableName, null, null, true);
 
     for(int i = 20; i< 40; i++) {
@@ -75,7 +76,8 @@ public class Test1 {
     if(cmuts.size() != count) {throw new RuntimeException();}
     long t2 = System.currentTimeMillis();
 
-    System.out.println(t2 - t1);
+
+    System.out.printf("time: %d ms  rate : %6.2f conditionalMutations/sec \n", (t2 - t1), 10000 / ((t2 -t1)/1000.0));
   }
 
   public static void main(String[] args) throws Exception  {

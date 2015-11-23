@@ -1,6 +1,7 @@
 package cmpt;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.accumulo.core.client.ConditionalWriter;
@@ -16,7 +17,7 @@ import org.apache.accumulo.core.data.Condition;
 import org.apache.accumulo.core.data.ConditionalMutation;
 import org.apache.commons.configuration.PropertiesConfiguration;
 
-public class Test1 {
+public class Test2 {
 
   public static void runPerfTest(Connector conn, String tableName) throws Exception {
 
@@ -30,12 +31,14 @@ public class Test1 {
 
     ConditionalWriter cw = conn.createConditionalWriter(tableName, new ConditionalWriterConfig());
 
-    timeX(cw, null);
+    boolean randomize = true;
+
+    timeX(cw, null, randomize);
 
     double rateSum = 0;
 
     for(int i = 1; i< 20; i++) {
-      rateSum+=timeX(cw, (long)i);
+      rateSum+=timeX(cw, (long)i, randomize);
     }
 
     System.out.printf("rate avg : %6.2f conditionalMutations/sec \n", rateSum/20);
@@ -46,26 +49,41 @@ public class Test1 {
     rateSum = 0;
 
     for(int i = 20; i< 40; i++) {
-      rateSum += timeX(cw, (long)i);
+      rateSum += timeX(cw, (long)i, randomize);
     }
 
     System.out.printf("rate avg : %6.2f conditionalMutations/sec \n", rateSum/20);
   }
 
-  private static double timeX(ConditionalWriter cw, Long seq) throws Exception {
+  private static double timeX(ConditionalWriter cw, Long seq, boolean randomize) throws Exception {
     ArrayList<ConditionalMutation> cmuts = new ArrayList<>();
 
+    ConditionalMutation cm = new ConditionalMutation("r01");
+
+    ArrayList<Integer> ints = new ArrayList<>(10000);
+
     for(int i = 0; i < 10000; i++) {
-      Condition cond = new Condition("meta", "seq");
+      ints.add(i);
+    }
+
+    if(randomize){
+      Collections.shuffle(ints);
+    }
+
+    for(int i = 0; i < 10000; i++) {
+      String qual = String.format("q%07d", ints.get(i));
+
+      Condition cond = new Condition("seq", qual);
       if(seq != null) {
         cond.setValue(""+seq);
       }
 
-      ConditionalMutation cm = new ConditionalMutation(String.format("r%07d", i), cond);
-      cm.put("meta", "seq", seq == null ? "1" : (seq +1)+"");
-      cmuts.add(cm);
+      cm.addCondition(cond);
+
+      cm.put("seq", qual, seq == null ? "1" : (seq +1)+"");
     }
 
+    cmuts.add(cm);
 
     long t1 = System.currentTimeMillis();
 

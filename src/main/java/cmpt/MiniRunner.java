@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.minicluster.MemoryUnit;
 import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.minicluster.MiniAccumuloConfig;
@@ -28,9 +29,11 @@ public class MiniRunner {
     //setting instance.volumes was not working
     site.put("instance.dfs.uri", dfscluster.getURI().toString());
     site.put("tserver.memory.maps.max", "512M");
+    site.put(Property.TSERV_DATACACHE_SIZE.getKey(), "512M");
+    site.put(Property.TSERV_INDEXCACHE_SIZE.getKey(), "512M");
     //site.put("tserver.server.threads.minimum", "128");
     macConfig.setSiteConfig(site);
-    macConfig.setMemory(ServerType.TABLET_SERVER, 1, MemoryUnit.GIGABYTE);
+    macConfig.setMemory(ServerType.TABLET_SERVER, 2, MemoryUnit.GIGABYTE);
     //System.out.println(site);
 
     MiniAccumuloCluster mac = new MiniAccumuloCluster(macConfig);

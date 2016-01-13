@@ -22,7 +22,10 @@ import org.apache.accumulo.core.data.Condition;
 import org.apache.accumulo.core.data.ConditionalMutation;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.hadoop.io.Text;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.hash.Hashing;
 
 public class Test4 {
@@ -34,12 +37,14 @@ public class Test4 {
 
     conn.tableOperations().create(tableName);
     conn.tableOperations().setProperty(tableName,Property.TABLE_BLOCKCACHE_ENABLED.getKey(), "true");
+    conn.tableOperations().setLocalityGroups(tableName, ImmutableMap.of("lg1", ImmutableSet.of(new Text("ntfy"))));
 
     int numRows = 100000;
     int numCols = 100;
     int numTest = 10;
 
     writeData(conn, tableName, numRows, numCols);
+    writeLgData(conn, tableName, numRows);
 
     ConditionalWriter cw = conn.createConditionalWriter(tableName, new ConditionalWriterConfig());
 
@@ -103,6 +108,30 @@ public class Test4 {
     }
 
     return m;
+  }
+
+  private static void writeLgData(Connector conn, String tableName, int numRows) throws TableNotFoundException, MutationsRejectedException {
+
+    long t1 = System.currentTimeMillis();
+
+    BatchWriter bw = conn.createBatchWriter(tableName, new BatchWriterConfig());
+
+    numRows = numRows * 10;
+
+    for(int row = 0; row < numRows; row++){
+      String r = String.format("%08x", Math.abs(Hashing.murmur3_32().hashInt(row).asInt()));
+
+      Mutation m = new Mutation(r);
+      m.put("ntfy", "absfasf3", "");
+      bw.addMutation(m);
+    }
+
+    bw.close();
+    long t2 = System.currentTimeMillis();
+
+
+    double rate = numRows / ((t2 -t1)/1000.0);
+    System.out.printf("time: %d ms  rate : %6.2f entries/sec written\n", (t2 - t1), rate);
   }
 
   private static String randRow(Random rand, int numRows) {

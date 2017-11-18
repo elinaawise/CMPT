@@ -31,12 +31,14 @@ import com.google.common.hash.Hashing;
 public class Test4 {
   public static void runPerfTest(Connector conn, String tableName) throws Exception {
 
-    try{
+    try {
       conn.tableOperations().delete(tableName);
-    } catch(TableNotFoundException e){}
+    } catch (TableNotFoundException e) {}
 
     conn.tableOperations().create(tableName);
-    conn.tableOperations().setProperty(tableName,Property.TABLE_BLOCKCACHE_ENABLED.getKey(), "true");
+    conn.tableOperations().setProperty(tableName, Property.TABLE_BLOCKCACHE_ENABLED.getKey(), "true");
+    conn.tableOperations().setProperty(tableName, Property.TABLE_INDEXCACHE_ENABLED.getKey(), "true");
+    conn.tableOperations().setProperty(tableName, Property.TABLE_FILE_COMPRESSED_BLOCK_SIZE.getKey(), "8K");
     conn.tableOperations().setLocalityGroups(tableName, ImmutableMap.of("lg1", ImmutableSet.of(new Text("ntfy"))));
 
     int numRows = 100000;
@@ -50,33 +52,33 @@ public class Test4 {
 
     double rateSum = 0;
 
-    for(int i = 0; i< numTest; i++) {
-      rateSum+=timeX(cw, numRows, numCols);
+    for (int i = 0; i < numTest; i++) {
+      rateSum += timeX(cw, numRows, numCols);
     }
 
-    System.out.printf("rate avg : %6.2f conditions/sec \n", rateSum/numTest);
+    System.out.printf("rate avg : %6.2f conditions/sec \n", rateSum / numTest);
 
     System.out.println("Flushing");
     conn.tableOperations().flush(tableName, null, null, true);
 
     rateSum = 0;
 
-    for(int i = 0; i< numTest; i++) {
+    for (int i = 0; i < numTest; i++) {
       rateSum += timeX(cw, numRows, numCols);
     }
 
-    System.out.printf("rate avg : %6.2f conditions/sec \n", rateSum/numTest);
+    System.out.printf("rate avg : %6.2f conditions/sec \n", rateSum / numTest);
 
     System.out.println("Compacting");
     conn.tableOperations().compact(tableName, null, null, true, true);
 
     rateSum = 0;
 
-    for(int i = 0; i< numTest; i++) {
+    for (int i = 0; i < numTest; i++) {
       rateSum += timeX(cw, numRows, numCols);
     }
 
-    System.out.printf("rate avg : %6.2f conditions/sec \n", rateSum/numTest);
+    System.out.printf("rate avg : %6.2f conditions/sec \n", rateSum / numTest);
   }
 
   private static void writeData(Connector conn, String tableName, int numRows, int numCols) throws TableNotFoundException, MutationsRejectedException {
@@ -85,15 +87,14 @@ public class Test4 {
 
     BatchWriter bw = conn.createBatchWriter(tableName, new BatchWriterConfig());
 
-    for(int row = 0; row < numRows; row++){
+    for (int row = 0; row < numRows; row++) {
       bw.addMutation(genRow(row, numCols));
     }
 
     bw.close();
     long t2 = System.currentTimeMillis();
 
-
-    double rate = numRows * numCols / ((t2 -t1)/1000.0);
+    double rate = numRows * numCols / ((t2 - t1) / 1000.0);
     System.out.printf("time: %d ms  rate : %6.2f entries/sec written\n", (t2 - t1), rate);
   }
 
@@ -102,7 +103,7 @@ public class Test4 {
 
     Mutation m = new Mutation(r);
 
-    for(int col = 0; col < numCols; col++){
+    for (int col = 0; col < numCols; col++) {
       String c = String.format("%04x", Math.abs(Hashing.murmur3_32().hashInt(col).asInt() & 0xffff));
       m.put("data", c, "1");
     }
@@ -118,7 +119,7 @@ public class Test4 {
 
     numRows = numRows * 10;
 
-    for(int row = 0; row < numRows; row++){
+    for (int row = 0; row < numRows; row++) {
       String r = String.format("%08x", Math.abs(Hashing.murmur3_32().hashInt(row).asInt()));
 
       Mutation m = new Mutation(r);
@@ -129,8 +130,7 @@ public class Test4 {
     bw.close();
     long t2 = System.currentTimeMillis();
 
-
-    double rate = numRows / ((t2 -t1)/1000.0);
+    double rate = numRows / ((t2 - t1) / 1000.0);
     System.out.printf("time: %d ms  rate : %6.2f entries/sec written\n", (t2 - t1), rate);
   }
 
@@ -141,7 +141,7 @@ public class Test4 {
 
   private static Collection<String> randCols(Random rand, int num, int numCols) {
     HashSet<String> cols = new HashSet<String>();
-    while(cols.size() < num){
+    while (cols.size() < num) {
       int col = rand.nextInt(numCols);
       String c = String.format("%04x", Math.abs(Hashing.murmur3_32().hashInt(col).asInt() & 0xffff));
       cols.add(c);
@@ -156,10 +156,10 @@ public class Test4 {
 
     ArrayList<ConditionalMutation> cmuts = new ArrayList<>();
 
-    for(int row = 0; row < 3000; row++){
-      ConditionalMutation cm  = new ConditionalMutation(randRow(rand, numRows));
+    for (int row = 0; row < 3000; row++) {
+      ConditionalMutation cm = new ConditionalMutation(randRow(rand, numRows));
 
-      for(String col : randCols(rand, 10, numCols)) {
+      for (String col : randCols(rand, 10, numCols)) {
         cm.addCondition(new Condition("data", col).setValue("1"));
         cm.put("data", col, "1");
       }
@@ -167,28 +167,30 @@ public class Test4 {
       cmuts.add(cm);
     }
 
-
     long t1 = System.currentTimeMillis();
 
     int count = 0;
     Iterator<Result> results = cw.write(cmuts.iterator());
-    while(results.hasNext()) {
+    while (results.hasNext()) {
       Result result = results.next();
 
-      if(Status.ACCEPTED != result.getStatus()) {throw new RuntimeException();}
+      if (Status.ACCEPTED != result.getStatus()) {
+        throw new RuntimeException();
+      }
       count++;
     }
 
-    if(cmuts.size() != count) {throw new RuntimeException();}
+    if (cmuts.size() != count) {
+      throw new RuntimeException();
+    }
     long t2 = System.currentTimeMillis();
 
-
-    double rate = 30000 / ((t2 -t1)/1000.0);
+    double rate = 30000 / ((t2 - t1) / 1000.0);
     System.out.printf("time: %d ms  rate : %6.2f conditions/sec \n", (t2 - t1), rate);
     return rate;
   }
 
-  public static void main(String[] args) throws Exception  {
+  public static void main(String[] args) throws Exception {
     PropertiesConfiguration config = new PropertiesConfiguration(args[0]);
     ZooKeeperInstance zki = new ZooKeeperInstance(config);
     Connector conn = zki.getConnector(config.getString("user.name"), new PasswordToken(config.getString("user.password")));
